@@ -63,7 +63,7 @@ def main():
     # define paths
 
     # root_dir = "data/viton_resize"
-    root_dir = "data/"
+    root_dir = "storage/data/"
     mask_folder = "image-mask"
     seg_folder = "image-parse-new"
 

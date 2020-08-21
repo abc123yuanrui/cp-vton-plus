@@ -30,7 +30,9 @@ class CPDataset(data.Dataset):
         self.transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-
+        self.transformmask = transforms.Compose([ 
+            transforms.ToTensor(), 
+            transforms.Normalize((0.5,), (0.5,))])
         # load data list
         im_names = []
         c_names = []
@@ -135,8 +137,8 @@ class CPDataset(data.Dataset):
             (self.fine_width, self.fine_height), Image.BILINEAR)
         parse_shape_ori = parse_shape_ori.resize(
             (self.fine_width, self.fine_height), Image.BILINEAR)
-        shape_ori = self.transform(parse_shape_ori)  # [-1,1]
-        shape = self.transform(parse_shape)  # [-1,1]
+        shape_ori = self.transformmask(parse_shape_ori)  # [-1,1]
+        shape = self.transformmask(parse_shape)# [-1,1]
         phead = torch.from_numpy(parse_head)  # [0,1]
         # phand = torch.from_numpy(parse_hand)  # [0,1]
         pcm = torch.from_numpy(parse_cloth)  # [0,1]
@@ -168,11 +170,11 @@ class CPDataset(data.Dataset):
                                 r, pointy+r), 'white', 'white')
                 pose_draw.rectangle(
                     (pointx-r, pointy-r, pointx+r, pointy+r), 'white', 'white')
-            one_map = self.transform(one_map)
+            one_map = self.transformmask(one_map)
             pose_map[i] = one_map[0]
 
         # just for visualization
-        im_pose = self.transform(im_pose)
+        im_pose = self.transformmask(im_pose)
 
         # cloth-agnostic representation
         agnostic = torch.cat([shape, im_h, pose_map], 0)

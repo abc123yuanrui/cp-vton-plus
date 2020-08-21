@@ -221,7 +221,7 @@ def update_image_segmentation(data_dir, mask_dir, image_name, mask_name, save_di
 def main():
     # define paths
 
-    root_dir = "data/"
+    root_dir = "storage/data/"
     updated_seg_folder = "image-parse-new"
 
     data_mode = "train"

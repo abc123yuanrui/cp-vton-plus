@@ -209,7 +209,7 @@ def main():
             load_checkpoint(model, opt.checkpoint)
         train_gmm(opt, train_loader, model, board)
         save_checkpoint(model, os.path.join(
-            opt.checkpoint_dir, opt.name, 'gmm_final.pth'))
+            opt.checkpoint_dir, opt.name, 'gmm_raw.pth'))
     elif opt.stage == 'TOM':
         # model = UnetGenerator(25, 4, 6, ngf=64, norm_layer=nn.InstanceNorm2d)  # CP-VTON
         model = UnetGenerator(
@@ -218,7 +218,7 @@ def main():
             load_checkpoint(model, opt.checkpoint)
         train_tom(opt, train_loader, model, board)
         save_checkpoint(model, os.path.join(
-            opt.checkpoint_dir, opt.name, 'tom_final.pth'))
+            opt.checkpoint_dir, opt.name, 'tom_raw.pth'))
     else:
         raise NotImplementedError('Model [%s] is not implemented' % opt.stage)
 

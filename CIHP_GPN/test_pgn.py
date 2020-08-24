@@ -17,8 +17,6 @@ from utils import *
 
 N_CLASSES = 20
 DATA_DIR = './datasets/CIHP'
-LIST_PATH = './datasets/CIHP/list/val.txt'
-DATA_ID_LIST = './datasets/CIHP/list/val_id.txt'
 with open(DATA_ID_LIST, 'r') as f:
     NUM_STEPS = len(f.readlines()) 
 RESTORE_FROM = './checkpoint/CIHP_pgn'
@@ -30,7 +28,7 @@ def main():
     coord = tf.train.Coordinator()
     # Load reader.
     with tf.name_scope("create_inputs"):
-        reader = ImageReader(DATA_DIR, LIST_PATH, DATA_ID_LIST, None, False, False, False, coord)
+        reader = ImageReader(DATA_DIR, None, False, False, False, coord)
         image, label, edge_gt = reader.image, reader.label, reader.edge
         image_rev = tf.reverse(image, tf.stack([1]))
         image_list = reader.image_list

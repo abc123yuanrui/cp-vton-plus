@@ -202,12 +202,29 @@ def read_images_from_disk(input_queue, input_size, random_scale, random_mirror=F
 
     return img, label, edge
 
+
+def get_list(data_dir):
+    image_dir = data_dir+'/images'
+    included_extensions = ['jpg','jpeg', 'bmp', 'png', 'gif']
+    edges = []
+    images = []
+    labels = []
+    file_names = [fn for fn in os.listdir(image_dir)
+                  if any(fn.endswith(ext) for ext in included_extensions)]
+    for file_name in file_names:
+        new_name = file_name.replace('.jpg','.png')
+        images.append(data_dir + '/images/' + file_name)
+        labels.append(data_dir + '/labels/' + new_name)
+        edges.append(data_dir + '/edges/' + new_name)
+    return images, labels, edges
+
+
 class ImageReader(object):
     '''Generic ImageReader which reads images and corresponding segmentation
        masks from the disk, and enqueues them into a TensorFlow queue.
     '''
 
-    def __init__(self, data_dir, data_list, data_id_list, input_size, random_scale,
+    def __init__(self, data_dir, input_size, random_scale,
                  random_mirror, shuffle, coord):
         '''Initialise an ImageReader.
         
@@ -221,14 +238,11 @@ class ImageReader(object):
           coord: TensorFlow queue coordinator.
         '''
         self.data_dir = data_dir
-        self.data_list = data_list
-        self.data_id_list = data_id_list
         self.input_size = input_size
         self.coord = coord
 
 
-        self.image_list, self.label_list = read_labeled_image_list(self.data_dir, self.data_list)
-        self.edge_list = read_edge_list(self.data_dir, self.data_id_list)
+        self.image_list, self.label_list, self.edge_list = get_list(data_dir)
         self.images = tf.convert_to_tensor(self.image_list, dtype=tf.string)
         self.labels = tf.convert_to_tensor(self.label_list, dtype=tf.string)
         self.edges = tf.convert_to_tensor(self.edge_list, dtype=tf.string)

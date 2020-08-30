@@ -224,7 +224,7 @@ def main():
     root_dir = "storage/data/"
     updated_seg_folder = "image-parse-new"
 
-    data_mode = "train"
+    data_mode = "test-end2end"
     # data_mode = "test"
     image_folder = "image"
     seg_folder = "image-parse"
@@ -238,15 +238,13 @@ def main():
             os.makedirs(updated_seg_dir)
     else:
         updated_seg_dir = None
-
-    image_list = os.listdir(image_dir)
-    masks_list = os.listdir(seg_dir)
-
     try:
         shutil.rmtree(os.path.join(image_dir, '.ipynb_checkpoints'))
         shutil.rmtree(os.path.join(seg_dir, '.ipynb_checkpoints'))
     except:
-        print("Clean")   
+        print("Clean")  
+    image_list = os.listdir(image_dir)
+    masks_list = os.listdir(seg_dir)
     for each in zip(image_list, masks_list):
         mask = each[0].replace("jpg", "png")
         update_image_segmentation(

@@ -67,13 +67,17 @@ def main():
     mask_folder = "image-mask"
     seg_folder = "image-parse-new"
 
-    data_mode = "train"
+    data_mode = "test-end2end"
     # data_mode = "test"
     image_folder = "image"
 
     image_dir = os.path.join(os.path.join(root_dir, data_mode), image_folder)
     seg_dir = os.path.join(os.path.join(root_dir, data_mode), seg_folder)
-
+    try:
+        shutil.rmtree(os.path.join(image_dir, '.ipynb_checkpoints'))
+        shutil.rmtree(os.path.join(seg_dir, '.ipynb_checkpoints'))
+    except:
+        print("Clean")  
     image_list = os.listdir(image_dir)
     seg_list = os.listdir(seg_dir)
 

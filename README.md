@@ -1,4 +1,12 @@
-# CP-VTON+ (CVPRW 2020)
+# CP-VTON+ end to end implementation
+
+Human parse segamentation: Self Correction for Human Parsing(https://github.com/PeikeLi/Self-Correction-Human-Parsing)<br/>
+Pose check points: AlphaPose(https://github.com/MVIG-SJTU/AlphaPose)<br/>
+GMM: CP-VTON(https://github.com/sergeywong/cp-vton)<br/>
+TOM: CP-VTON+(https://github.com/minar09/cp-vton-plus)<br/>
+Image enhence: TecoGan(https://github.com/thunil/TecoGAN)
+
+## CP-VTON+
 Official implementation for "CP-VTON+: Clothing Shape and Texture Preserving Image-Based Virtual Try-On" from CVPRW 2020.
 <br/>Project page: https://minar09.github.io/cpvtonplus/. 
 <br/>Saved/Pre-trained models: [Checkpoints](https://1drv.ms/u/s!Ai8t8GAHdzVUiQA-o3C7cnrfGN6O?e=gUZQI6)
@@ -6,7 +14,7 @@ Official implementation for "CP-VTON+: Clothing Shape and Texture Preserving Ima
 <br/><br/>
 ![Teaser](./teaser.png)
 	
-## Usage
+### Usage
 This pipeline is a combination of consecutive training and testing of GMM + TOM. GMM generates the warped clothes according to the target human. Then, TOM blends the warped clothes outputs from GMM into the target human properties, to generate the final try-on output.
 
 1) Install the requirements
@@ -16,15 +24,6 @@ This pipeline is a combination of consecutive training and testing of GMM + TOM.
 5) Train TOM network
 6) Test/evaluate with test set, test GMM first, then copy warped clothes & masks inside `data/test` directory, and test TOM
 
-## Installation
-This implementation is built and tested in PyTorch 0.4.1.
-Pytorch and torchvision are recommended to install with conda: `conda install pytorch=0.4.1 torchvision=0.2.1 -c pytorch`
-<br/>For all packages, run `pip install -r requirements.txt`
-
-## Data preparation
-1) Run `python data_download.py`, it will download the full dataset into data/ folder, both train and test.
-2) Run `python dataset_neck_skin_correction.py`, for both 'train' and 'test' data for training and testing. Please set the correct paths in the script before running. It will add a new segmentation label for neck/skin areas, and save the new segmentation in "image-parse-new" folder. You need to run twice for both train and test data. Alternatively, you can also use our corrected segmentation files. We uploaded the corrected segmentation here: [image-parse-new](https://drive.google.com/drive/folders/1fol0mMvrgjGE5lZlqR7y-7LhOOraU1wQ).
-3) Run `python body_binary_masking.py`, for both 'train' and 'test' data for training and testing. Please set the correct paths in the script before running. It will create the body binary masks for the inputs of the networks. You need to run for both train and test data for training and testing.
 
 ## Training
 Run `python train.py` with your specific usage options for GMM and TOM stage.

@@ -36,7 +36,6 @@ def body_detection(image, seg_mask):
 
 
 def make_body_mask(data_dir, seg_dir, image_name, mask_name, save_dir=None):
-    print(image_name)
 
     # define paths
     img_pth = os.path.join(data_dir, image_name)
@@ -45,18 +44,19 @@ def make_body_mask(data_dir, seg_dir, image_name, mask_name, save_dir=None):
     mask_path = None
     if save_dir is not None:
         mask_path = os.path.join(save_dir, mask_name)
+    if (os.path.isfile(img_pth) and os.path.isfile(seg_pth)):
+        # Load images
+        img = cv2.imread(img_pth)
+        # segm = Image.open(seg_pth)
+        # the png file should be 1-ch but it is 3 ch ^^;
+        print(image_name, mask_name)
+        gray = cv2.imread(seg_pth, cv2.IMREAD_GRAYSCALE)
+        _, seg_mask = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
 
-    # Load images
-    img = cv2.imread(img_pth)
-    # segm = Image.open(seg_pth)
-    # the png file should be 1-ch but it is 3 ch ^^;
-    gray = cv2.imread(seg_pth, cv2.IMREAD_GRAYSCALE)
-    _, seg_mask = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
-
-    body_mask = body_detection(img, seg_mask)
-    body_mask = body_mask + seg_mask
-    body_mask[seg_mask] = 1
-    cv2.imwrite(mask_path, body_mask)
+        body_mask = body_detection(img, seg_mask)
+        body_mask = body_mask + seg_mask
+        body_mask[seg_mask] = 1
+        cv2.imwrite(mask_path, body_mask)
 
 
 def main():
@@ -67,7 +67,7 @@ def main():
     mask_folder = "image-mask"
     seg_folder = "image-parse-new"
 
-    data_mode = "test-end2end"
+    data_mode = "train-opt"
     # data_mode = "test"
     image_folder = "image"
 
@@ -75,18 +75,18 @@ def main():
     seg_dir = os.path.join(os.path.join(root_dir, data_mode), seg_folder)
     try:
         shutil.rmtree(os.path.join(image_dir, '.ipynb_checkpoints'))
-        shutil.rmtree(os.path.join(seg_dir, '.ipynb_checkpoints'))
+        shutil.rmtree('storage/data/test-end2end/image-parse-new/.ipynb_checkpoints')
     except:
-        print("Clean")  
+        print("Image directory is clean")
     image_list = os.listdir(image_dir)
     seg_list = os.listdir(seg_dir)
-
     mask_dir = os.path.join(os.path.join(root_dir, data_mode), mask_folder)
     if not os.path.exists(mask_dir):
         os.makedirs(mask_dir)
 
     for each in zip(image_list, seg_list):
-        make_body_mask(image_dir, seg_dir, each[0], each[1], mask_dir)
+        mask = each[0].replace("jpg", "png")
+        make_body_mask(image_dir, seg_dir, each[0], mask, mask_dir)
 
 
 if __name__ == '__main__':

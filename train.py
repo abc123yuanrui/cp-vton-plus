@@ -213,7 +213,7 @@ def main():
     elif opt.stage == 'TOM':
         # model = UnetGenerator(25, 4, 6, ngf=64, norm_layer=nn.InstanceNorm2d)  # CP-VTON
         model = UnetGenerator(
-            26, 4, 6, ngf=64, norm_layer=nn.InstanceNorm2d)  # CP-VTON+
+            25, 4, 6, ngf=64, norm_layer=nn.InstanceNorm2d)  # CP-VTON+
         if not opt.checkpoint == '' and os.path.exists(opt.checkpoint):
             load_checkpoint(model, opt.checkpoint)
         train_tom(opt, train_loader, model, board)

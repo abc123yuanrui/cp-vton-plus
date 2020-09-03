@@ -504,7 +504,7 @@ class GMM(nn.Module):
     def __init__(self, opt):
         super(GMM, self).__init__()
         self.extractionA = FeatureExtraction(
-            22, ngf=64, n_layers=3, norm_layer=nn.BatchNorm2d)
+            21, ngf=64, n_layers=3, norm_layer=nn.BatchNorm2d)
         self.extractionB = FeatureExtraction(
             1, ngf=64, n_layers=3, norm_layer=nn.BatchNorm2d)
         self.l2norm = FeatureL2Norm()

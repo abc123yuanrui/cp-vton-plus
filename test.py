@@ -211,7 +211,7 @@ def main():
             test_gmm(opt, test_loader, model, board)
     elif opt.stage == 'TOM':
         # model = UnetGenerator(25, 4, 6, ngf=64, norm_layer=nn.InstanceNorm2d)  # CP-VTON
-        model = UnetGenerator(26, 4, 6, ngf=64, norm_layer=nn.InstanceNorm2d)  # CP-VTON+
+        model = UnetGenerator(25, 4, 6, ngf=64, norm_layer=nn.InstanceNorm2d)  # CP-VTON+
         load_checkpoint(model, opt.checkpoint)
         with torch.no_grad():
             test_tom(opt, test_loader, model, board)

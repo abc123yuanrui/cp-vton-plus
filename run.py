@@ -29,24 +29,28 @@ def folder_check(path):
     
     return path
 
-if( runcase == 0 ): # download inference data, trained models
+if( runcase == 0 ): # human parse segamentation
     cmd1 = "python segamentation/simple_extractor.py --dataset 'lip' --model-restore storage/checkpoints-humanParsing/exp-schp-201908261155-lip.pth --input-dir storage/data/test-end2end/image --output-dir storage/data/test-end2end/image-parse"
     subprocess.call(cmd1, shell=True)
-    
-    # download some test data
+
+    # add neck to segamentation
     cmd2 = "python dataset_neck_skin_correction.py"
     subprocess.call(cmd2, shell=True)
-    
-    shutil.rmtree('storage/data/test-end2end/image-parse-new/.ipynb_checkpoints')
-    
-    # download the ground-truth data
+
+    # binary masking
     cmd3 = "python body_binary_masking.py"
     subprocess.call(cmd3, shell=True)
     # clothes mask
     cmd4 = "python cloth_binary_masking.py"
     subprocess.call(cmd4, shell=True)
     #GMM
-    cmd5 = "python test.py --name GMM --dataroot storage/data --stage GMM --workers 4 --datamode test-end2end --data_list test_end2end_pairs.txt --checkpoint storage/checkpoints-cpvton-plus/GMM/GMM/gmm_final.pth"
+    cmd5 = "python test.py --name GMM --dataroot storage/data --stage GMM --workers 4 --datamode test-end2end --data_list test_end2end_pairs.txt --checkpoint storage/checkpoints-cpvton-plus/GMM/gmm_opt.pth --result_dir storage/result-cpvton-plus-opt"
     subprocess.call(cmd5, shell=True)
-    
+    #Move GMM results to working directory
+    cmd6 = "mv -v storage/result-cpvton-plus-opt/GMM/test-end2end/warp-cloth storage/data/test-end2end"
+    subprocess.call(cmd6, shell=True)
+    cmd7 = "mv -v storage/result-cpvton-plus-opt/GMM/test-end2end/warp-mask storage/data/test-end2end"
+    subprocess.call(cmd7, shell=True)
+    cmd8 = "python test.py --name TOM --dataroot storage/data --stage TOM --workers 4 --datamode test-end2end --data_list test_end2end_pairs.txt --checkpoint storage/checkpoints-cpvton-plus/TOM/tom_opt.pth --result_dir storage/result-cpvton-plus-testend2end"
+    subprocess.call(cmd8, shell=True)
     ## python test.py --name GMM --dataroot storage/data --stage GMM --workers 4 --datamode test-end2end --data_list test_end2end_pairs.txt --checkpoint storage/checkpoints-cpvton-plus/checkpoints/GMM/gmm_final.pth

@@ -1,10 +1,11 @@
-# coding=utf-8
+
 import torch
 import torch.nn as nn
 from torch.nn import init
 from torchvision import models
 import os
-
+import itertools
+from torch.autograd import Function, Variable
 import numpy as np
 
 
@@ -524,7 +525,271 @@ class GMM(nn.Module):
         theta = self.regression(correlation)
         grid = self.gridGen(theta)
         return grid, theta
+### From ACGPN: STN TPS
 
+
+# phi(x1, x2) = r^2 * log(r), where r = ||x1 - x2||_2
+def compute_partial_repr(input_points, control_points):
+    N = input_points.size(0)
+    M = control_points.size(0)
+    pairwise_diff = input_points.view(N, 1, 2) - control_points.view(1, M, 2)
+    # original implementation, very slow
+    # pairwise_dist = torch.sum(pairwise_diff ** 2, dim = 2) # square of distance
+    pairwise_diff_square = pairwise_diff * pairwise_diff
+    pairwise_dist = pairwise_diff_square[:, :, 0] + pairwise_diff_square[:, :, 1]
+    repr_matrix = 0.5 * pairwise_dist * torch.log(pairwise_dist)
+    # fix numerical error for 0 * log(0), substitute all nan with 0
+    mask = repr_matrix != repr_matrix
+    repr_matrix.masked_fill_(mask, 0)
+    return repr_matrix
+
+class TPSGridGen(nn.Module):
+
+    def __init__(self, target_height, target_width, target_control_points):
+        super(TPSGridGen, self).__init__()
+        assert target_control_points.ndimension() == 2
+        assert target_control_points.size(1) == 2
+        N = target_control_points.size(0)
+        self.num_points = N
+        target_control_points = target_control_points.float()
+
+        # create padded kernel matrix
+        forward_kernel = torch.zeros(N + 3, N + 3)
+        target_control_partial_repr = compute_partial_repr(target_control_points, target_control_points)
+        forward_kernel[:N, :N].copy_(target_control_partial_repr)
+        forward_kernel[:N, -3].fill_(1)
+        forward_kernel[-3, :N].fill_(1)
+        forward_kernel[:N, -2:].copy_(target_control_points)
+        forward_kernel[-2:, :N].copy_(target_control_points.transpose(0, 1))
+        # compute inverse matrix
+        inverse_kernel = torch.inverse(forward_kernel)
+
+        # create target cordinate matrix
+        HW = target_height * target_width
+        target_coordinate = list(itertools.product(range(target_height), range(target_width)))
+        target_coordinate = torch.Tensor(target_coordinate) # HW x 2
+        Y, X = target_coordinate.split(1, dim = 1)
+        Y = Y * 2 / (target_height - 1) - 1
+        X = X * 2 / (target_width - 1) - 1
+        target_coordinate = torch.cat([X, Y], dim = 1) # convert from (y, x) to (x, y)
+        target_coordinate_partial_repr = compute_partial_repr(target_coordinate, target_control_points)
+        target_coordinate_repr = torch.cat([
+            target_coordinate_partial_repr, torch.ones(HW, 1), target_coordinate
+        ], dim = 1)
+
+        # register precomputed matrices
+        self.register_buffer('inverse_kernel', inverse_kernel)
+        self.register_buffer('padding_matrix', torch.zeros(3, 2))
+        self.register_buffer('target_coordinate_repr', target_coordinate_repr)
+
+    def forward(self, source_control_points):
+        assert source_control_points.ndimension() == 3
+        assert source_control_points.size(1) == self.num_points
+        assert source_control_points.size(2) == 2
+        batch_size = source_control_points.size(0)
+
+        Y = torch.cat([source_control_points, Variable(self.padding_matrix.expand(batch_size, 3, 2))], 1)
+        mapping_matrix = torch.matmul(Variable(self.inverse_kernel), Y)
+        source_coordinate = torch.matmul(Variable(self.target_coordinate_repr), mapping_matrix)
+        return source_coordinate
+
+class CNN(nn.Module):
+    def __init__(self, num_output, input_nc=5, ngf=8, n_layers=5, norm_layer=nn.InstanceNorm2d, use_dropout=False):
+        super(CNN, self).__init__()
+        downconv = nn.Conv2d(5, ngf, kernel_size=4, stride=2, padding=1)
+        model = [downconv, nn.ReLU(True), norm_layer(ngf)]
+        for i in range(n_layers):
+            in_ngf = 2 ** i * ngf if 2 ** i * ngf < 1024 else 1024
+            out_ngf = 2 ** (i + 1) * ngf if 2 ** i * ngf < 1024 else 1024
+            downconv = nn.Conv2d(in_ngf, out_ngf, kernel_size=4, stride=2, padding=1)
+            model += [downconv, norm_layer(out_ngf), nn.ReLU(True)]
+        model += [nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1), norm_layer(64), nn.ReLU(True)]
+        model += [nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1), norm_layer(64), nn.ReLU(True)]
+        self.maxpool = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.model = nn.Sequential(*model)
+        self.fc1 = nn.Linear(512, 128)
+        self.fc2 = nn.Linear(128, num_output)
+
+    def forward(self, x):
+        x = self.model(x)
+        x = self.maxpool(x)
+        x = x.view(x.shape[0], -1)
+        x = F.relu(self.fc1(x))
+        x = F.dropout(x, training=self.training)
+        x = self.fc2(x)
+
+        return x
+
+
+class ClsNet(nn.Module):
+
+    def __init__(self):
+        super(ClsNet, self).__init__()
+        self.cnn = CNN(10)
+
+    def forward(self, x):
+        return F.log_softmax(self.cnn(x))
+
+
+class BoundedGridLocNet(nn.Module):
+
+    def __init__(self, grid_height, grid_width, target_control_points):
+        super(BoundedGridLocNet, self).__init__()
+        self.cnn = CNN(grid_height * grid_width * 2)
+
+        bias = torch.from_numpy(np.arctanh(target_control_points.numpy()))
+        bias = bias.view(-1)
+        self.cnn.fc2.bias.data.copy_(bias)
+        self.cnn.fc2.weight.data.zero_()
+
+    def forward(self, x):
+        batch_size = x.size(0)
+        points = F.tanh(self.cnn(x))
+        coor=points.view(batch_size, -1, 2)
+        # coor+=torch.randn(coor.shape).cuda()/10
+        row=self.get_row(coor,5)
+        col=self.get_col(coor,5)
+        rx,ry,cx,cy=torch.tensor(0.08).cuda(),torch.tensor(0.08).cuda()\
+            ,torch.tensor(0.08).cuda(),torch.tensor(0.08).cuda()
+        row_x,row_y=row[:,:,0],row[:,:,1]
+        col_x,col_y=col[:,:,0],col[:,:,1]
+        rx_loss=torch.max(rx,row_x).mean()
+        ry_loss=torch.max(ry,row_y).mean()
+        cx_loss=torch.max(cx,col_x).mean()
+        cy_loss=torch.max(cy,col_y).mean()
+
+
+        return  coor,rx_loss,ry_loss,cx_loss,cy_loss
+
+    def get_row(self,coor,num):
+        sec_dic=[]
+        for j in range(num):
+            sum=0
+            buffer=0
+            flag=False
+            max=-1
+            for i in range(num-1):
+                differ=(coor[:,j*num+i+1,:]-coor[:,j*num+i,:])**2
+                if not flag:
+                    second_dif=0
+                    flag=True
+                else:
+                    second_dif=torch.abs(differ-buffer)
+                    sec_dic.append(second_dif)
+
+                buffer=differ
+                sum+=second_dif
+        return torch.stack(sec_dic,dim=1)
+
+    def get_col(self,coor,num):
+        sec_dic=[]
+        for i in range(num):
+            sum = 0
+            buffer = 0
+            flag = False
+            max = -1
+            for j in range(num - 1):
+                differ = (coor[:, (j+1) * num + i , :] - coor[:, j * num + i, :]) ** 2
+                if not flag:
+                    second_dif = 0
+                    flag = True
+                else:
+                    second_dif = torch.abs(differ-buffer)
+                    sec_dic.append(second_dif)
+                buffer = differ
+                sum += second_dif
+        return torch.stack(sec_dic,dim=1)
+
+class UnBoundedGridLocNet(nn.Module):
+
+    def __init__(self, grid_height, grid_width, target_control_points):
+        super(UnBoundedGridLocNet, self).__init__()
+        self.cnn = CNN(grid_height * grid_width * 2)
+
+        bias = target_control_points.view(-1)
+        self.cnn.fc2.bias.data.copy_(bias)
+        self.cnn.fc2.weight.data.zero_()
+
+    def forward(self, x):
+        batch_size = x.size(0)
+        points = self.cnn(x)
+        return points.view(batch_size, -1, 2)
+
+
+class STNNet(nn.Module):
+
+    def __init__(self):
+        super(STNNet, self).__init__()
+        range = 0.9
+        r1 = range
+        r2 = range
+        grid_size_h = 5
+        grid_size_w = 5
+
+        assert r1 < 1 and r2 < 1  # if >= 1, arctanh will cause error in BoundedGridLocNet
+        target_control_points = torch.Tensor(list(itertools.product(
+            np.arange(-r1, r1 + 0.00001, 2.0 * r1 / (grid_size_h - 1)),
+            np.arange(-r2, r2 + 0.00001, 2.0 * r2 / (grid_size_w - 1)),
+        )))
+        Y, X = target_control_points.split(1, dim=1)
+        target_control_points = torch.cat([X, Y], dim=1)
+        self.target_control_points=target_control_points
+        # self.get_row(target_control_points,5)
+        GridLocNet = {
+            'unbounded_stn': UnBoundedGridLocNet,
+            'bounded_stn': BoundedGridLocNet,
+        }['bounded_stn']
+        self.loc_net = GridLocNet(grid_size_h, grid_size_w, target_control_points)
+
+        self.tps = TPSGridGen(256, 192, target_control_points)
+
+    def get_row(self, coor, num):
+        for j in range(num):
+            sum = 0
+            buffer = 0
+            flag = False
+            max = -1
+            for i in range(num - 1):
+                differ = (coor[j * num + i + 1, :] - coor[j * num + i, :]) ** 2
+                if not flag:
+                    second_dif = 0
+                    flag = True
+                else:
+                    second_dif = torch.abs(differ - buffer)
+
+                buffer = differ
+                sum += second_dif
+            print(sum / num)
+    def get_col(self,coor,num):
+        for i in range(num):
+            sum = 0
+            buffer = 0
+            flag = False
+            max = -1
+            for j in range(num - 1):
+                differ = (coor[ (j + 1) * num + i, :] - coor[j * num + i, :]) ** 2
+                if not flag:
+                    second_dif = 0
+                    flag = True
+                else:
+                    second_dif = torch.abs(differ-buffer)
+
+                buffer = differ
+                sum += second_dif
+            print(sum)
+    def forward(self, x, reference, mask,grid_pic):
+        batch_size = x.size(0)
+        source_control_points,rx,ry,cx,cy = self.loc_net(reference)
+        source_control_points=(source_control_points)
+        # print('control points',source_control_points.shape)
+        source_coordinate = self.tps(source_control_points)
+        grid = source_coordinate.view(batch_size, 256, 192, 2)
+        # print('grid size',grid.shape)
+        transformed_x = grid_sample(x, grid, canvas=0)
+        warped_mask = grid_sample(mask, grid, canvas=0)
+        warped_gpic= grid_sample(grid_pic, grid, canvas=0)
+        return transformed_x, warped_mask,rx,ry,cx,cy,warped_gpic
+##### Above netwroks are from ACGPN
 
 def save_checkpoint(model, save_path):
     if not os.path.exists(os.path.dirname(save_path)):

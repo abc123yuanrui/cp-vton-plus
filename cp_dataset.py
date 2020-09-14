@@ -107,7 +107,8 @@ class CPDataset(data.Dataset):
 
         # parse_shape = (parse_array > 0).astype(np.float32)  # CP-VTON body shape
         # Get shape from body mask (CP-VTON+)
-        parse_shape = (mask_array > 0).astype(np.float32)
+        ## parse_shape = (mask_array > 0).astype(np.float32) can only detect white background
+        parse_shape = (parse_array > 0).astype(np.float32)
 
         if self.stage == 'GMM':
             parse_head = (parse_array == 1).astype(np.float32) + \
@@ -151,7 +152,7 @@ class CPDataset(data.Dataset):
         pose_name = im_name.replace('.jpg', '_keypoints.json')
         with open(osp.join(self.data_path, 'pose', pose_name), 'r') as f:
             pose_label = json.load(f)
-            pose_data = pose_label['people'][0]['pose_keypoints']
+            pose_data = pose_label[0]["keypoints"]
             pose_data = np.array(pose_data)
             pose_data = pose_data.reshape((-1, 3))
 

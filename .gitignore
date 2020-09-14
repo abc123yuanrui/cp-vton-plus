@@ -1,6 +1,7 @@
 *__pycache__*
 checkpoints/*
 tensorboard/*
+storage/*
 result/
 data/train/*
 data/test/*

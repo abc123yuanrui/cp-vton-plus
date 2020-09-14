@@ -526,7 +526,15 @@ class GMM(nn.Module):
         grid = self.gridGen(theta)
         return grid, theta
 ### From ACGPN: STN TPS
-
+def grid_sample(input, grid, canvas = None):
+    output = F.grid_sample(input, grid)
+    if canvas is None:
+        return output
+    else:
+        input_mask = Variable(input.data.new(input.size()).fill_(1))
+        output_mask = F.grid_sample(input_mask, grid)
+        padded_output = output * output_mask + canvas * (1 - output_mask)
+        return padded_output
 
 # phi(x1, x2) = r^2 * log(r), where r = ||x1 - x2||_2
 def compute_partial_repr(input_points, control_points):
